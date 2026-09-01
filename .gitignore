@@ -1,0 +1,9 @@
+captures/
+proxy.log
+.proxy.pid
+.patched.json
+settings.json.bak
+__pycache__/
+view.log
+.view.pid
+tap.py.orig

@@ -1,0 +1,464 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>claude-tap</title>
+<style>
+:root{
+  --bg:#fbfaf8; --panel:#fff; --line:#e6e2dc; --fg:#22201d; --dim:#7d766c;
+  --sel:#e8f0fb; --acc:#2f6fd0; --req:#2f6fd0; --res:#1f8a5f;
+  --warn:#c0392b; --tag:#f0ece5; --think:#8a6bbf; --tool:#b5761f; --subc:#c0679c;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#16171a; --panel:#1c1e22; --line:#2e3238; --fg:#e6e4e0; --dim:#8d9199;
+  --sel:#233246; --acc:#6aa6f5; --req:#6aa6f5; --res:#5ec99a;
+  --warn:#f0776a; --tag:#282c32; --think:#b39ae0; --tool:#e0a44f; --subc:#d98ab8;
+}}
+*{box-sizing:border-box}
+body{margin:0;height:100vh;display:flex;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+     background:var(--bg);color:var(--fg);overflow:hidden}
+.col{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line)}
+#sess{width:240px;flex:none}
+#reqs{width:300px;flex:none}
+#pane{flex:1;border-right:0}
+.hd{padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel);
+    display:flex;gap:8px;align-items:center;flex:none;font-weight:600}
+.hd small{font-weight:400;color:var(--dim)}
+.scroll{overflow:auto;flex:1}
+.row{padding:7px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:hover{background:var(--tag)}
+.row.on{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
+.row .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .m{color:var(--dim);font-size:11px;font-family:ui-monospace,Menlo,monospace;
+        display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+input,select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;
+      padding:3px 6px;font:inherit;font-size:12px}
+#sfilter{width:100%}
+button{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:5px;
+       padding:2px 8px;font:inherit;font-size:11px;cursor:pointer}
+button:hover{border-color:var(--acc);color:var(--acc)}
+.bad{color:var(--warn)} .ok{color:var(--res)}
+#meta{padding:7px 10px;border-bottom:1px solid var(--line);background:var(--panel);flex:none;
+      font-family:ui-monospace,Menlo,monospace;font-size:11px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{background:var(--tag);border-radius:4px;padding:1px 6px;white-space:nowrap}
+#split{flex:1;display:flex;min-height:0}
+.half{flex:1;min-width:0;overflow:auto;padding:0 0 40vh}
+.half+.half{border-left:1px solid var(--line)}
+.htitle{position:sticky;top:0;z-index:2;background:var(--panel);border-bottom:1px solid var(--line);
+        padding:5px 10px;font-weight:600;font-size:12px;display:flex;justify-content:space-between;gap:8px}
+#reqHalf .htitle{color:var(--req)} #resHalf .htitle{color:var(--res)}
+details{border-bottom:1px solid var(--line)}
+summary{padding:5px 10px;cursor:pointer;font-size:12px;display:flex;gap:6px;align-items:baseline;
+        font-family:ui-monospace,Menlo,monospace}
+summary:hover{background:var(--tag)}
+summary .who{font-weight:700;font-family:inherit}
+summary .kind{color:var(--dim)}
+pre{margin:0;padding:6px 12px 10px;white-space:pre-wrap;word-break:break-word;
+    font:12px/1.6 ui-monospace,Menlo,monospace}
+.b-thinking{border-left:3px solid var(--think)} .b-thinking pre{color:var(--think);font-style:italic}
+.b-tool_use,.b-tool_result{border-left:3px solid var(--tool)}
+.b-text{border-left:3px solid transparent}
+.cc{color:var(--acc);font-size:10px;border:1px solid var(--acc);border-radius:3px;padding:0 3px}
+.hl{animation:hl 1.6s ease-out}
+@keyframes hl{from{background:var(--sel)}to{background:transparent}}
+.empty{padding:24px 14px;color:var(--dim)}
+.more{margin:0 12px 10px;font-size:11px}
+.k{font-size:10px;border-radius:3px;padding:0 4px;border:1px solid;white-space:nowrap}
+.k-main{color:var(--req);border-color:var(--req)}
+.k-sub{color:var(--subc);border-color:var(--subc)}
+.k-ep{color:var(--res);border-color:var(--res)}
+.k-title,.k-guard,.k-quota,.k-other{color:var(--dim);border-color:var(--line)}
+#filter{padding:5px 8px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap;font-size:11px}
+#filter label{display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--dim)}
+#filter input{width:auto}
+.note{color:var(--subc);font-size:11px}
+.ghd{position:sticky;top:0;z-index:1;background:var(--bg);padding:3px 10px;
+     border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+     font:10px/1.7 ui-monospace,Menlo,monospace;color:var(--dim);
+     display:flex;gap:6px;align-items:center}
+.ghd b{color:var(--fg);font-size:11px}
+.row.d1{padding-left:26px;position:relative}
+.row.d1::before{content:'';position:absolute;left:12px;top:0;bottom:0;border-left:2px solid var(--subc)}
+</style>
+
+<div class="col" id="sess">
+  <div class="hd"><span id="l-sessions"></span> <small id="scount"></small>
+    <select id="lang" style="margin-left:auto">
+      <option value="en">EN</option><option value="zh">中文</option>
+    </select>
+  </div>
+  <div style="padding:6px 8px;border-bottom:1px solid var(--line)"><input id="sfilter"></div>
+  <div class="scroll" id="slist"></div>
+</div>
+
+<div class="col" id="reqs">
+  <div class="hd"><span id="l-requests"></span> <small id="rcount"></small>
+    <label style="margin-left:auto;font-weight:400;font-size:11px;color:var(--dim)">
+      <input type="checkbox" id="auto" checked> <span id="l-auto"></span></label>
+  </div>
+  <div id="filter">
+    <label><input type="checkbox" class="kf" value="main" checked> <span id="l-f-main"></span></label>
+    <label><input type="checkbox" class="kf" value="sub" checked> <span id="l-f-sub"></span></label>
+    <label><input type="checkbox" class="kf" value="side"> <span id="l-f-side"></span></label>
+  </div>
+  <div class="scroll" id="rlist"></div>
+</div>
+
+<div class="col" id="pane">
+  <div id="meta"></div>
+  <div id="split">
+    <div class="half" id="reqHalf"></div>
+    <div class="half" id="resHalf"></div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- i18n
+// Two sets of UI strings, English by default; the choice is remembered in localStorage.
+// The backend only returns `kind`; every display name is translated here.
+const I18N = {
+  en: {
+    sessions:'Sessions', requests:'Requests', auto:'auto', filterHint:'filter title / id',
+    fMain:'main', fSub:'subagent', fSide:'side',
+    kind:{main:'main', sub:'subagent', title:'title-gen', guard:'security', quota:'quota', other:'?'},
+    pickSession:'Pick a session on the left.', untitled:'(title pending)',
+    nReq:n=>`${n} req`, noSessions:'No matching session.', noReqs:'No requests in this session.',
+    waiting:'…waiting', cache:n=>`cache ${n}`,
+    turn:n=>`turn ${n}`, sessionStart:'session start',
+    cMain:n=>`main ${n}`, cSub:n=>`sub ${n}`, cSide:n=>`side ${n}`,
+    hidden:n=>`${n} hidden by the switches above`,
+    request:'Request', response:'Response',
+    reqSummary:(s,m,t)=>`${s} system · ${m} messages · ${t} tools`,
+    resSummary:(b,by)=>`${b} blocks · ${by} bytes`,
+    tools:'TOOLS', nItems:n=>`${n}`, chars:n=>`${n} chars`,
+    rawSse:'raw SSE', chainHead:'chain head', prevInChain:n=>`← prev in chain #${n}`,
+    seeResult:n=>`see result → #${n}`, truncatedJson:'input JSON truncated',
+    noBlocks:'No content blocks in the response.',
+    noRespFile:'No response file yet.<br><br>If this is an old capture, tap.py did not record responses back then — restart the proxy and new requests will have them.',
+    respPending:'response not written yet (request in flight, or an old tap.py)',
+    transportErr:'transport error', apiErr:'API error', unparsed:'unparsable response body',
+    expandRest:n=>`show remaining ${n} chars`,
+    elapsed:'elapsed', ttfb:'ttfb', sseEvents:'SSE events', breakpoints:'cache breakpoints',
+    cacheRead:'cache read', cacheWrite:'cache write',
+  },
+  zh: {
+    sessions:'会话', requests:'请求', auto:'自动刷新', filterHint:'过滤标题 / id',
+    fMain:'主对话', fSub:'子agent', fSide:'旁路',
+    kind:{main:'主对话', sub:'子agent', title:'起标题', guard:'安全审查', quota:'配额探针', other:'?'},
+    pickSession:'左边选一个会话。', untitled:'(标题待生成)',
+    nReq:n=>`${n} 个`, noSessions:'没有匹配的会话。', noReqs:'这个会话下没有请求。',
+    waiting:'…等响应', cache:n=>`缓存 ${n}`,
+    turn:n=>`第${n}轮`, sessionStart:'会话开头',
+    cMain:n=>`主${n}`, cSub:n=>`子${n}`, cSide:n=>`旁路${n}`,
+    hidden:n=>`按上面的开关隐藏了 ${n} 条`,
+    request:'请求', response:'响应',
+    reqSummary:(s,m,t)=>`${s} 个 system 块 · ${m} 条 message · ${t} 个 tool`,
+    resSummary:(b,by)=>`${b} 块 · ${by} 字节`,
+    tools:'TOOLS', nItems:n=>`${n} 个`, chars:n=>`${n} 字`,
+    rawSse:'原始 SSE', chainHead:'链头', prevInChain:n=>`← 本链上一次 #${n}`,
+    seeResult:n=>`看结果 → #${n}`, truncatedJson:'入参 JSON 被截断',
+    noBlocks:'响应里没有内容块。',
+    noRespFile:'还没有响应文件。<br><br>如果这是旧的抓包, 那时的 tap.py 还没抓响应; 重启代理后新的请求就有了。',
+    respPending:'响应还没落盘 (请求进行中, 或代理是旧版 tap.py)',
+    transportErr:'传输错误', apiErr:'API 错误', unparsed:'无法解析的响应体',
+    expandRest:n=>`展开剩下 ${n} 字符`,
+    elapsed:'耗时', ttfb:'首字节', sseEvents:'SSE事件', breakpoints:'cache断点',
+    cacheRead:'cache读', cacheWrite:'cache写',
+  },
+};
+let LANG = 'en';
+try { LANG = localStorage.getItem('tap_lang') || 'en'; } catch (e) {}
+if (!I18N[LANG]) LANG = 'en';
+let T = I18N[LANG];
+
+function applyStaticLabels() {
+  document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : 'en';
+  $('#l-sessions').textContent = T.sessions;
+  $('#l-requests').textContent = T.requests;
+  $('#l-auto').textContent = T.auto;
+  $('#l-f-main').textContent = T.fMain;
+  $('#l-f-sub').textContent = T.fSub;
+  $('#l-f-side').textContent = T.fSide;
+  $('#sfilter').placeholder = T.filterHint;
+  $('#lang').value = LANG;
+}
+
+// ---------------------------------------------------------------- helpers
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const j = async u => (await fetch(u)).json();
+const num = n => n == null ? '-' : n.toLocaleString();
+const CUT = 4000;   // fold a block once its text is longer than this
+
+let S = [], SID = null, ITEMS = [], GROUPS = [], STEM = null, PAIR = null;
+
+window.__full = {};
+function body(txt, cls) {
+  const t = String(txt ?? '');
+  if (t.length <= CUT) return `<pre class="${cls||''}">${esc(t)}</pre>`;
+  const id = 'x' + Math.random().toString(36).slice(2);
+  window.__full[id] = t;
+  return `<pre class="${cls||''}" id="${id}">${esc(t.slice(0, CUT))}</pre>`
+    + `<div class="more"><button onclick="document.getElementById('${id}').textContent=window.__full['${id}'];this.parentNode.remove()">`
+    + `${esc(T.expandRest((t.length - CUT).toLocaleString()))}</button></div>`;
+}
+function blockText(x) {
+  if (typeof x === 'string') return x;
+  if (!x || typeof x !== 'object') return String(x);
+  if (x.type === 'text' || x.text != null) return x.text;
+  if (x.type === 'thinking') return x.thinking || x.signature || '';
+  if (x.type === 'tool_use') return JSON.stringify(x.input ?? x.input_partial ?? {}, null, 2);
+  if (x.type === 'tool_result') {
+    const c = x.content;
+    return typeof c === 'string' ? c
+      : Array.isArray(c) ? c.map(blockText).join('\n') : JSON.stringify(c, null, 2);
+  }
+  return JSON.stringify(x, null, 2);
+}
+const blocksOf = m => Array.isArray(m.content) ? m.content : [m.content];
+const kindLabel = k => T.kind[k] || k;
+
+// ---------------------------------------------------------------- sessions
+async function loadSessions(keep) {
+  S = await j('/api/sessions');
+  $('#scount').textContent = `(${S.length})`;
+  drawSessions();
+  if (!keep && !SID && S.length) selectSession(S[0].id);
+}
+function drawSessions() {
+  const q = $('#sfilter').value.trim().toLowerCase();
+  const list = S.filter(s => !q || (s.title || '').toLowerCase().includes(q) || s.id.includes(q));
+  $('#slist').innerHTML = list.map(s => `
+    <div class="row ${s.id === SID ? 'on' : ''}" data-sid="${s.id}">
+      <div class="t">${esc(s.title || T.untitled)}</div>
+      <div class="m"><span>${s.id.slice(0,8)}</span><span>${esc(T.nReq(s.count))}</span>
+        ${s.kinds?.main ? `<span class="k k-main">${esc(T.cMain(s.kinds.main))}</span>` : ''}
+        ${s.kinds?.sub ? `<span class="k k-sub">${esc(T.cSub(s.kinds.sub))}</span>` : ''}
+        <span>${new Date(s.mtime*1000).toLocaleString(LANG === 'zh' ? 'zh-CN' : 'en-US',
+          {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></div>
+    </div>`).join('') || `<div class="empty">${esc(T.noSessions)}</div>`;
+  $('#slist').querySelectorAll('.row').forEach(r =>
+    r.onclick = () => selectSession(r.dataset.sid));
+}
+
+// ---------------------------------------------------------------- request list
+async function selectSession(sid, keepStem) {
+  SID = sid; drawSessions();
+  const d = await j('/api/session?sid=' + encodeURIComponent(sid));
+  ITEMS = d.items || []; GROUPS = d.groups || [];
+  $('#rcount').textContent = `(${ITEMS.length})`;
+  drawReqs();
+  const vis = ITEMS.filter(wanted);
+  const want = keepStem && ITEMS.some(i => i.stem === keepStem) ? keepStem
+             : (vis.length ? vis[vis.length-1].stem : (ITEMS.length ? ITEMS[ITEMS.length-1].stem : null));
+  if (want) selectReq(want);
+}
+const SIDE = ['title', 'guard', 'quota', 'other'];      // what the "side" switch covers
+function wanted(i) {
+  const on = [...document.querySelectorAll('.kf:checked')].map(c => c.value);
+  return on.includes(i.kind) || (on.includes('side') && SIDE.includes(i.kind));
+}
+function rowHtml(i) {
+  const model = (i.model || '').replace(/^claude-/, '').replace(/-\d{8}$/, '');
+  const st = !i.has_resp ? `<span style="color:var(--dim)">${esc(T.waiting)}</span>`
+    : i.err || (i.status && i.status >= 400) ? `<span class="bad">${i.status ?? 'ERR'} ✕</span>`
+    : `<span class="ok">${i.status}</span>`;
+  const tools = (i.tool_names || []).filter(Boolean);
+  return `<div class="row d${i.depth} ${i.stem === STEM ? 'on' : ''}" data-stem="${i.stem}">
+    <div class="t">#${i.stem.split('-')[0]} <span class="k k-${i.kind}">${esc(kindLabel(i.kind))}</span>
+      ${i.entrypoint === 'sdk-cli' ? '<span class="k k-ep">sdk</span>' : ''}
+      <span style="color:var(--dim);font-weight:400">${i.at}</span> ${st}</div>
+    ${i.note ? `<div class="note">↳ ${esc(i.note)}</div>` : ''}
+    <div class="m"><span>${esc(model)}</span><span>≈${num(i.total_tok)}tok</span>
+      ${i.out_tok != null ? `<span>out ${num(i.out_tok)}</span>` : ''}
+      ${i.cache_read ? `<span>${esc(T.cache(num(i.cache_read)))}</span>` : ''}
+      ${i.elapsed_ms != null ? `<span>${(i.elapsed_ms/1000).toFixed(1)}s</span>` : ''}
+      ${i.stop_reason ? `<span>${esc(i.stop_reason)}</span>` : ''}
+      ${tools.length ? `<span style="color:var(--tool)">🔧${tools.map(esc).join(',')}</span>` : ''}</div>
+  </div>`;
+}
+function drawReqs() {
+  const top = $('#rlist').scrollTop;
+  const by = {}; ITEMS.forEach(i => by[i.stem] = i);
+  let html = '', hidden = 0;
+  for (const g of GROUPS) {
+    const rows = g.stems.map(x => by[x]).filter(Boolean);
+    const vis = rows.filter(wanted);
+    hidden += rows.length - vis.length;
+    if (!vis.length) continue;
+    const c = {}; rows.forEach(i => c[i.kind] = (c[i.kind] || 0) + 1);
+    const parts = [];
+    if (c.main) parts.push(esc(T.cMain(c.main)));
+    if (c.sub) parts.push(`<span style="color:var(--subc)">${esc(T.cSub(c.sub))}</span>`);
+    const side = SIDE.reduce((n, k) => n + (c[k] || 0), 0);
+    if (side) parts.push(esc(T.cSide(side)));
+    html += `<div class="ghd"><b>${esc(g.turn ? T.turn(g.turn) : T.sessionStart)}</b>
+      <span>${rows[0].at}</span>${g.prompt_id ? `<span>${g.prompt_id.slice(0,8)}</span>` : ''}
+      <span style="margin-left:auto">${parts.join(' · ')}</span></div>` + vis.map(rowHtml).join('');
+  }
+  $('#rlist').innerHTML = html + (hidden
+      ? `<div class="empty" style="padding:10px 12px;font-size:11px">${esc(T.hidden(hidden))}</div>` : '')
+    || `<div class="empty">${esc(T.noReqs)}</div>`;
+  $('#rlist').querySelectorAll('.row').forEach(r =>
+    r.onclick = () => selectReq(r.dataset.stem));
+  $('#rlist').scrollTop = top;
+}
+
+// ---------------------------------------------------------------- request / response pairing
+async function selectReq(stem, focusToolId) {
+  STEM = stem; drawReqs();
+  $('#rlist').querySelector('.row.on')?.scrollIntoView({block:'nearest'});
+  PAIR = await j(`/api/pair?sid=${encodeURIComponent(SID)}&stem=${encodeURIComponent(stem)}`);
+  window.__full = {};
+  drawMeta(); drawRequest(); drawResponse();
+  if (focusToolId) {
+    const el = document.getElementById('tr-' + focusToolId);
+    if (el) { el.open = true; el.scrollIntoView({block:'center'}); el.classList.add('hl'); }
+  }
+}
+const ccCount = b => (JSON.stringify(b).match(/"cache_control"/g) || []).length;
+
+function drawMeta() {
+  if (!PAIR) { $('#meta').innerHTML = `<span class="empty" style="padding:0">${esc(T.pickSession)}</span>`; return; }
+  const b = PAIR.request?.body || {}, r = PAIR.response, u = r?.usage || {};
+  const chip = (k, v, cls) => `<span class="chip ${cls||''}">${k} <b>${v}</b></span>`;
+  let h = `<span class="k k-${PAIR.kind}">${esc(kindLabel(PAIR.kind))}</span>`
+    + (PAIR.entrypoint ? chip('entrypoint', esc(PAIR.entrypoint)) : '')
+    + (PAIR.prompt_id ? chip('prompt_id', esc(PAIR.prompt_id.slice(0,8))) : '')
+    + (() => {   // the previous request on this same agent chain
+        const me = ITEMS.find(x => x.stem === STEM);
+        return me?.prev_stem
+          ? `<button onclick="selectReq('${me.prev_stem}')">${esc(T.prevInChain(me.prev_stem.split('-')[0]))}</button>`
+          : `<span class="chip" style="color:var(--dim)">${esc(T.chainHead)}</span>`;
+      })()
+    + chip('model', esc(b.model || '?'))
+    + chip('max_tokens', num(b.max_tokens))
+    + chip('stream', b.stream ? 'true' : 'false')
+    + chip(T.breakpoints, ccCount(b));
+  if (r) {
+    const err = r.transport_error || (r.errors || [])[0];
+    h += chip('status', r.status ?? '-', (r.status >= 400 || err) ? 'bad' : 'ok')
+      + chip('in', num(u.input_tokens)) + chip('out', num(u.output_tokens))
+      + chip(T.cacheRead, num(u.cache_read_input_tokens ?? 0))
+      + chip(T.cacheWrite, num(u.cache_creation_input_tokens ?? 0))
+      + chip('stop', esc(r.stop_reason ?? '-'))
+      + chip(T.elapsed, ((r.elapsed_ms||0)/1000).toFixed(1) + 's')
+      + chip(T.ttfb, r.ttfb_ms == null ? '-' : (r.ttfb_ms/1000).toFixed(1) + 's')
+      + (r.sse ? chip(T.sseEvents, num(r.events)) : '')
+      + (err ? `<span class="chip bad">⚠️ ${esc(typeof err === 'string' ? err : (err.message || JSON.stringify(err)))}</span>` : '');
+    if (PAIR.raw_sse) h += `<button onclick="window.open('/api/sse?sid=${SID}&stem=${STEM}')">${esc(T.rawSse)}</button>`;
+  } else {
+    h += `<span class="chip" style="color:var(--dim)">${esc(T.respPending)}</span>`;
+  }
+  $('#meta').innerHTML = h;
+}
+
+function drawRequest() {
+  const b = PAIR.request?.body || {};
+  const sys = typeof b.system === 'string' ? [{type:'text', text:b.system}] : (b.system || []);
+  const msgs = b.messages || [], tools = b.tools || [];
+  // tool_use_id -> tool name, so a tool_result can show whose result it is
+  const toolName = {};
+  msgs.forEach(m => blocksOf(m).forEach(x => { if (x?.type === 'tool_use') toolName[x.id] = x.name; }));
+
+  let h = `<div class="htitle"><span>${esc(T.request)} · ${esc(PAIR.request.captured_at)}</span>
+    <span style="color:var(--dim);font-weight:400">${esc(T.reqSummary(sys.length, msgs.length, tools.length))}</span></div>`;
+
+  h += `<details class="b-text"><summary><span class="who">${T.tools}</span>
+    <span class="kind">${esc(T.nItems(tools.length))}</span></summary>
+    ${body(tools.map(t => `● ${t.name}\n   ${(t.description||'').split('\n')[0].slice(0,160)}`).join('\n'))}</details>`;
+
+  sys.forEach((s, i) => {
+    const cc = JSON.stringify(s).includes('"cache_control"') ? '<span class="cc">cache</span>' : '';
+    h += `<details class="b-text"><summary><span class="who">SYSTEM[${i}]</span>
+      <span class="kind">${esc(T.chars(blockText(s).length))}</span>${cc}</summary>${body(blockText(s))}</details>`;
+  });
+
+  msgs.forEach((m, i) => {
+    const bs = blocksOf(m), last = i >= msgs.length - 2;
+    const cc = JSON.stringify(m).includes('"cache_control"') ? '<span class="cc">cache</span>' : '';
+    bs.forEach((x, k) => {
+      const t = (x && x.type) || 'text';
+      const label = t === 'tool_result' ? `tool_result ← ${esc(toolName[x.tool_use_id] || '?')}`
+                  : t === 'tool_use' ? `tool_use → ${esc(x.name)}` : t;
+      const id = t === 'tool_result' && x.tool_use_id ? ` id="tr-${x.tool_use_id}"` : '';
+      const err = x && x.is_error ? '<span class="bad">is_error</span>' : '';
+      h += `<details class="b-${t}"${id} ${last ? 'open' : ''}><summary>
+        <span class="who">[${i}] ${esc(m.role)}</span><span class="kind">${label}</span>${err}${k===0?cc:''}
+        </summary>${body(blockText(x))}</details>`;
+    });
+  });
+  $('#reqHalf').innerHTML = h;
+}
+
+function drawResponse() {
+  const r = PAIR.response;
+  if (!r) {
+    $('#resHalf').innerHTML = `<div class="htitle">${esc(T.response)}</div><div class="empty">${T.noRespFile}</div>`;
+    return;
+  }
+  const blocks = r.blocks || [];
+  let h = `<div class="htitle"><span>${esc(T.response)} · ${esc(r.captured_at || '')}</span>
+    <span style="color:var(--dim);font-weight:400">${esc(T.resSummary(blocks.length, num(r.bytes)))}</span></div>`;
+  if (r.transport_error) h += `<pre class="bad">${esc(T.transportErr)}: ${esc(r.transport_error)}</pre>`;
+  (r.errors || []).forEach(e => h += `<pre class="bad">${esc(T.apiErr)}: ${esc(JSON.stringify(e, null, 2))}</pre>`);
+  if (r.unparsed) h += `<pre class="bad">${esc(T.unparsed)}:\n${esc(r.unparsed)}</pre>`;
+
+  // where the next request is, for the "jump to this tool call's result" button
+  const idx = ITEMS.findIndex(i => i.stem === STEM), next = ITEMS[idx+1];
+
+  blocks.forEach((x, k) => {
+    const t = x.type || '?';
+    let label = t, extra = '';
+    if (t === 'tool_use') {
+      label = `tool_use → ${esc(x.name)}`;
+      if (next) extra = `<button onclick="event.preventDefault();selectReq('${next.stem}','${x.id}')">
+        ${esc(T.seeResult(next.stem.split('-')[0]))}</button>`;
+    }
+    if (x.input_partial) extra += `<span class="bad">${esc(T.truncatedJson)}</span>`;
+    h += `<details class="b-${t}" open><summary><span class="who">[${k}]</span>
+      <span class="kind">${label}</span>${extra}</summary>${body(blockText(x))}</details>`;
+  });
+  if (!blocks.length && !r.errors?.length) h += `<div class="empty">${esc(T.noBlocks)}</div>`;
+  $('#resHalf').innerHTML = h;
+}
+
+// ---------------------------------------------------------------- interaction
+$('#sfilter').oninput = drawSessions;
+$('#lang').onchange = e => {
+  LANG = e.target.value; T = I18N[LANG];
+  try { localStorage.setItem('tap_lang', LANG); } catch (err) {}
+  applyStaticLabels(); drawSessions(); drawReqs();
+  if (PAIR) { drawMeta(); drawRequest(); drawResponse(); } else { drawMeta(); }
+};
+document.querySelectorAll('.kf').forEach(c => c.onchange = () => {
+  drawReqs();
+  if (!ITEMS.find(i => i.stem === STEM && wanted(i))) {
+    const vis = ITEMS.filter(wanted);
+    if (vis.length) selectReq(vis[vis.length - 1].stem);
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.metaKey || e.ctrlKey) return;
+  const vis = ITEMS.filter(wanted), i = vis.findIndex(x => x.stem === STEM);
+  if (e.key === 'j' && i > -1 && i < vis.length-1) selectReq(vis[i+1].stem);
+  if (e.key === 'k' && i > 0) selectReq(vis[i-1].stem);
+});
+setInterval(async () => {
+  if (!$('#auto').checked) return;
+  await loadSessions(true);
+  if (!SID) return;
+  const before = JSON.stringify(ITEMS.map(i => [i.stem, i.has_resp]));
+  const myRespBefore = ITEMS.find(i => i.stem === STEM)?.has_resp;
+  const d = await j('/api/session?sid=' + encodeURIComponent(SID));
+  ITEMS = d.items || []; GROUPS = d.groups || [];
+  if (JSON.stringify(ITEMS.map(i => [i.stem, i.has_resp])) === before) return;
+  $('#rcount').textContent = `(${ITEMS.length})`;
+  drawReqs();
+  const me = ITEMS.find(i => i.stem === STEM);
+  if (!me && ITEMS.length) selectReq(ITEMS[ITEMS.length-1].stem);   // current one is gone
+  else if (me && me.has_resp !== myRespBefore) selectReq(STEM);      // redraw only when its response landed
+}, 4000);
+
+applyStaticLabels();
+drawMeta();
+loadSessions();
+</script>
