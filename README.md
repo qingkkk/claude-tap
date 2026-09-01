@@ -5,6 +5,8 @@ side by side in a local browser page.
 
 [中文文档 →](README.zh-CN.md)
 
+![claude-tap viewer — sessions, requests grouped by turn, request/response side by side](docs/viewer.png)
+
 A [mitmproxy](https://mitmproxy.org) addon parks itself in front of `POST /v1/messages`, writes
 every request **and** its streamed response to disk grouped by session, and a small read-only web
 viewer pairs them up: request on the left, response on the right, one row per API call.

@@ -4,6 +4,8 @@
 
 [English →](README.md)
 
+![claude-tap 查看器 —— 会话列表、按轮次分组的请求、请求/响应左右对照](docs/viewer.png)
+
 一个 [mitmproxy](https://mitmproxy.org) addon 蹲在 `POST /v1/messages` 前面，把每个请求和它的
 流式响应按会话分目录落盘；配套一个只读的网页查看器把两边配对起来：左边请求，右边响应，一行一次
 API 调用。
